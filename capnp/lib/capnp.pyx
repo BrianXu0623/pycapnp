@@ -13,8 +13,9 @@ from capnp.helpers.helpers cimport init_capnp_api
 from capnp.includes.capnp_cpp cimport AsyncIoStream, WaitScope, PyPromise, VoidPromise, EventPort, EventLoop, Canceler, PyAsyncIoStream, PromiseFulfiller, VoidPromiseFulfiller, tryReadMessage, writeMessage, makeException, PythonInterfaceDynamicImpl
 from capnp.includes.schema_cpp cimport (MessageReader,)
 
+from builtins import memoryview as BuiltinsMemoryview
 from cpython cimport array, Py_buffer, PyObject_CheckBuffer, memoryview, buffer
-from cpython.buffer cimport PyBUF_SIMPLE, PyBUF_WRITABLE
+from cpython.buffer cimport PyBUF_SIMPLE, PyBUF_WRITABLE, PyBUF_CONTIG_RO
 from cpython.exc cimport PyErr_Clear
 from cython.operator cimport dereference as deref
 from libc.stdlib cimport malloc, free
@@ -696,7 +697,8 @@ cdef to_python_builder(C_DynamicValue.Builder self, object parent):
         return (<char*>temp_text.begin())[:temp_text.size()]
     elif type == capnp.TYPE_DATA:
         temp_data = self.asData()
-        return <bytes>((<char*>temp_data.begin())[:temp_data.size()])
+        return memoryview.PyMemoryView_FromMemory(<char *> temp_data.begin(), temp_data.size(), buffer.PyBUF_WRITE)
+        # return <bytes> ((<char *> temp_data.begin())[:temp_data.size()])
     elif type == capnp.TYPE_LIST:
         return _DynamicListBuilder()._init(self.asList(), parent)
     elif type == capnp.TYPE_STRUCT:
@@ -761,6 +763,20 @@ cdef _setBytes(_DynamicSetterClasses thisptr, field, value):
     cdef C_DynamicValue.Reader temp = C_DynamicValue.Reader(temp_string)
     thisptr.set(field, temp)
 
+cdef _setMemoryview(_DynamicSetterClasses thisptr, field, value):
+    cdef Py_buffer buf
+    cdef capnp.StringPtr ptr
+    cdef C_DynamicValue.Reader temp
+    if PyObject_GetBuffer(value, &buf, PyBUF_CONTIG_RO) != 0:
+        raise KjException(
+            "cannot get buffer from memory view，for field '{}'".format(field)
+        )
+    try:
+        ptr = capnp.StringPtr(<char *> buf.buf, buf.len)
+        temp = C_DynamicValue.Reader(ptr)
+        thisptr.set(field, temp)
+    finally:
+        PyBuffer_Release(&buf)
 
 cdef _setBaseString(_DynamicSetterClasses thisptr, field, value):
     encoded_value = value.encode('utf-8')
@@ -800,6 +816,8 @@ cdef _setDynamicField(_DynamicSetterClasses thisptr, field, value, parent):
         thisptr.set(field, temp)
     elif value_type is bytes:
         _setBytes(thisptr, field, value)
+    elif isinstance(value, BuiltinsMemoryview):
+        _setMemoryview(thisptr, field, value)
     elif isinstance(value, basestring):
         _setBaseString(thisptr, field, value)
     elif value_type is list:
@@ -3725,6 +3743,10 @@ cdef class _MallocMessageBuilder(_MessageBuilder):
         else:
             self.thisptr = new schema_cpp.MallocMessageBuilder(size)
 
+
+cdef class _PyCustomMessageBuilder(_MessageBuilder):
+    def __init__(self, allocate_seg_func):
+        self.thisptr = new schema_cpp.PyCustomMessageBuilder(<PyObject*>allocate_seg_func)
 
 cdef class _MessageReader:
     """An abstract base class for reading Cap'n Proto messages
