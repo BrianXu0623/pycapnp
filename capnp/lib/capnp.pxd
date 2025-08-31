@@ -151,6 +151,12 @@ cdef class _MessageBuilder:
     cpdef set_root(self, value)
     cpdef get_segments_for_output(self)
     cpdef new_orphan(self, schema)
+    cpdef get_alloc_options(self)
+    cpdef set_alloc_options(self, AllocateOptions py_opts)
+
+cdef class AllocateOptions:
+    cdef public bint lazyZeroSegment
+    cdef public bint skipZeroData
 
 cdef to_python_reader(C_DynamicValue.Reader self, object parent)
 cdef to_python_builder(C_DynamicValue.Builder self, object parent)

@@ -3784,6 +3784,26 @@ cdef class _MessageBuilder:
         ptr = s._thisptr()
         return _DynamicOrphan()._init(self.thisptr.newOrphan(ptr), self)
 
+    cpdef set_alloc_options(self, AllocateOptions py_opts):
+        if py_opts is None:
+            raise ValueError("py_opts must be an AllocateOptions instance, got None")
+
+        cdef schema_cpp.AllocOptions opts
+        opts.lazyZeroSegment = <bint> py_opts.lazyZeroSegment
+        opts.skipZeroData    = <bint> py_opts.skipZeroData
+        self.thisptr.setAllocOptions(opts)
+
+    cpdef get_alloc_options(self):
+        cdef schema_cpp.AllocOptions opts = self.thisptr.getAllocOptions()
+        cdef AllocateOptions py_opts = AllocateOptions()
+        py_opts.lazyZeroSegment = opts.lazyZeroSegment
+        py_opts.skipZeroData = opts.skipZeroData
+        return py_opts
+
+cdef class AllocateOptions:
+    def __init__(self, lazyZeroSegment=False, skipZeroData=False):
+        self.lazyZeroSegment = lazyZeroSegment
+        self.skipZeroData = skipZeroData
 
 cdef class _MallocMessageBuilder(_MessageBuilder):
     """The main class for building Cap'n Proto messages
