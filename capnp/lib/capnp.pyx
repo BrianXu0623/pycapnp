@@ -14,7 +14,7 @@ from capnp.includes.capnp_cpp cimport AsyncIoStream, WaitScope, PyPromise, VoidP
 from capnp.includes.schema_cpp cimport (MessageReader,)
 
 from builtins import memoryview as BuiltinsMemoryview
-from cpython cimport array, Py_buffer, PyObject_CheckBuffer, memoryview, buffer
+from cpython cimport array, Py_buffer, PyObject_CheckBuffer
 from cpython.buffer cimport PyBUF_SIMPLE, PyBUF_WRITABLE, PyBUF_WRITE, PyBUF_READ, PyBUF_CONTIG_RO
 from cpython.memoryview cimport PyMemoryView_FromMemory
 from cpython.exc cimport PyErr_Clear
@@ -702,7 +702,7 @@ cdef to_python_builder(C_DynamicValue.Builder self, object parent):
         return (<char*>temp_text.begin())[:temp_text.size()]
     elif type == capnp.TYPE_DATA:
         temp_data = self.asData()
-        return PyMemoryView_FromMemory(<char *> temp_data.begin(), temp_data.size(), buffer.PyBUF_WRITE)
+        return PyMemoryView_FromMemory(<char *> temp_data.begin(), temp_data.size(), PyBUF_WRITE)
     elif type == capnp.TYPE_LIST:
         return _DynamicListBuilder()._init(self.asList(), parent)
     elif type == capnp.TYPE_STRUCT:
