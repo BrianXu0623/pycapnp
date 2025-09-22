@@ -649,6 +649,10 @@ cdef extern from "capnp/message.h" namespace " ::capnp":
         uint64_t traversalLimitInWords
         uint nestingLimit
 
+    cdef cppclass AllocOptions nogil:
+        bint lazyZeroSegment
+        bint skipZeroData
+
     cdef cppclass MessageBuilder nogil:
         CodeGeneratorRequest.Builder getRootCodeGeneratorRequest'getRoot< ::capnp::schema::CodeGeneratorRequest>'()
         CodeGeneratorRequest.Builder initRootCodeGeneratorRequest'initRoot< ::capnp::schema::CodeGeneratorRequest>'()
@@ -682,6 +686,9 @@ cdef extern from "capnp/message.h" namespace " ::capnp":
         AnyPointer.Builder getRootAnyPointer'getRoot< ::capnp::AnyPointer>'()
 
         DynamicOrphan newOrphan'getOrphanage().newOrphan'(StructSchema)
+
+        void setAllocOptions'setAllocOptions'(AllocOptions options)
+        AllocOptions getAllocOptions'getAllocOptions'() const
 
     cdef cppclass MessageReader nogil:
         CodeGeneratorRequest.Reader getRootCodeGeneratorRequest'getRoot< ::capnp::schema::CodeGeneratorRequest>'()
