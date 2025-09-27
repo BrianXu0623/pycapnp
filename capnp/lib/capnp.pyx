@@ -3196,14 +3196,14 @@ class _StructABCMeta(type):
         return isinstance(obj, cls.__base__) and obj.schema == cls._schema
 
 
-cdef _new_message(self, kwargs, num_first_segment_words, allocate_seg_callable, allocate_options):
+cdef _new_message(self, kwargs, num_first_segment_words, allocate_seg_callable, builder_options):
     cdef _MessageBuilder builder
     if allocate_seg_callable is None:
         builder = _MallocMessageBuilder(num_first_segment_words)
-        builder.set_alloc_options(allocate_options)
+        builder.set_options(builder_options)
     else:
         builder = _PyCustomMessageBuilder(allocate_seg_callable, num_first_segment_words)
-        builder.set_alloc_options(allocate_options)
+        builder.set_options(builder_options)
     msg = builder.init_root(self.schema)
     if kwargs is not None:
         msg.from_dict(kwargs)
@@ -3444,7 +3444,7 @@ class _StructModule(object):
     def __call__(self, num_first_segment_words=None, **kwargs):
         return self.new_message(num_first_segment_words=num_first_segment_words, **kwargs)
 
-    def new_message(self, num_first_segment_words=None, allocate_seg_callable=None, allocate_options=AllocateOptions(), **kwargs):
+    def new_message(self, num_first_segment_words=None, allocate_seg_callable=None, builder_options=BuilderOptions(), **kwargs):
         """Returns a newly allocated builder message.
 
         :type num_first_segment_words: int
@@ -3455,8 +3455,8 @@ class _StructModule(object):
         words to allocate (as an `int`) and returns a `bytearray`. This is used to customize the memory
         allocation strategy.
 
-        :type allocate_options: AllocateOptions
-        :param allocate_seg_callable: This is for configuring memory allocation options, such as lazy zero allocation.
+        :type builder_options: BuilderOptions
+        :param builder_options: This is for configuring message builder options, such as lazy zero segment alloc.
 
         :type kwargs: dict
         :param kwargs: A list of fields and their values to initialize in the struct.
@@ -3466,7 +3466,7 @@ class _StructModule(object):
 
         :rtype: :class:`_DynamicStructBuilder`
         """
-        return _new_message(self, kwargs, num_first_segment_words, allocate_seg_callable, allocate_options)
+        return _new_message(self, kwargs, num_first_segment_words, allocate_seg_callable, builder_options)
 
 
 class _InterfaceModule(object):
@@ -3800,23 +3800,30 @@ cdef class _MessageBuilder:
         ptr = s._thisptr()
         return _DynamicOrphan()._init(self.thisptr.newOrphan(ptr), self)
 
-    cpdef set_alloc_options(self, AllocateOptions py_opts):
+    cpdef set_options(self, BuilderOptions py_opts):
         if py_opts is None:
-            raise ValueError("py_opts must be an AllocateOptions instance, got None")
+            raise ValueError("options must be an BuilderOptions instance, got None")
 
-        cdef schema_cpp.AllocOptions opts
-        opts.lazyZeroSegment = <bint> py_opts.lazyZeroSegment
-        opts.skipZeroData    = <bint> py_opts.skipZeroData
-        self.thisptr.setAllocOptions(opts)
+        cdef schema_cpp.BuilderOptions opts
+        opts.lazyZeroSegmentAlloc.enableLazyZero = <bint> py_opts.lazyZeroSegment
+        if py_opts.skipZeroData:
+            opts.lazyZeroSegmentAlloc.skipLazyZeroTypes.insert(capnp.TypeWhichDATA)
+        self.thisptr.setOptions(opts)
 
-    cpdef get_alloc_options(self):
-        cdef schema_cpp.AllocOptions opts = self.thisptr.getAllocOptions()
-        cdef AllocateOptions py_opts = AllocateOptions()
-        py_opts.lazyZeroSegment = opts.lazyZeroSegment
-        py_opts.skipZeroData = opts.skipZeroData
+
+    cpdef get_options(self):
+        cdef schema_cpp.BuilderOptions opts = self.thisptr.getOptions()
+        cdef BuilderOptions py_opts = BuilderOptions()
+        py_opts.lazyZeroSegment = opts.lazyZeroSegmentAlloc.enableLazyZero
+        if opts.lazyZeroSegmentAlloc.skipLazyZeroTypes.count(capnp.TypeWhichDATA):
+            py_opts.skipZeroData = True
         return py_opts
 
-cdef class AllocateOptions:
+cdef class BuilderOptions:
+    def __init__(self, lazyZeroSegment=False, skipZeroData=False):
+        self.lazyZeroSegment = lazyZeroSegment
+        self.skipZeroData = skipZeroData
+
     def __init__(self, lazyZeroSegment=False, skipZeroData=False):
         self.lazyZeroSegment = lazyZeroSegment
         self.skipZeroData = skipZeroData
