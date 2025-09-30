@@ -15,8 +15,8 @@ class Allocator:
         # dirty the memory on purpose, to simulate reusing shared memory
         return bytearray(random.getrandbits(8) for _ in range(minimum_size * WORD_SIZE))
 
-allocate_options = allocate_options=capnp.AllocateOptions(lazyZeroSegment=True, skipZeroData=True)
-person = addressbook_capnp.Person.new_message(allocate_seg_callable=Allocator(), allocate_options=allocate_options)
+builder_options=capnp.BuilderOptions(lazyZeroSegment=True, skipZeroData=True)
+person = addressbook_capnp.Person.new_message(allocate_seg_callable=Allocator(), builder_options=builder_options)
 print(person.name)
 person.name = "test name"
 print(person.name)
