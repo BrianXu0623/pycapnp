@@ -3821,11 +3821,15 @@ cdef class _MessageBuilder:
 
     cpdef get_options(self):
         cdef schema_cpp.BuilderOptions opts = self.thisptr.getOptions()
+
         cdef BuilderOptions py_opts = BuilderOptions()
         py_opts.lazyZeroSegmentAlloc = LazyZeroSegmentAlloc()
         py_opts.lazyZeroSegmentAlloc.enableLazyZero = opts.lazyZeroSegmentAlloc.enableLazyZero
+        py_opts.lazyZeroSegmentAlloc.skipLazyZeroTypes = set()
+
         if opts.lazyZeroSegmentAlloc.skipLazyZeroTypes.count(capnp.TypeWhichDATA):
-           py_opts.lazyZeroSegmentAlloc.skipLazyZeroTypes = { types.Data }
+            py_opts.lazyZeroSegmentAlloc.skipLazyZeroTypes.add(types.Data)
+
         return py_opts
 
 cdef class LazyZeroSegmentAlloc:
