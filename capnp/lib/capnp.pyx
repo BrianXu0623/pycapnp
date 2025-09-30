@@ -3805,28 +3805,42 @@ cdef class _MessageBuilder:
             raise ValueError("options must be an BuilderOptions instance, got None")
 
         cdef schema_cpp.BuilderOptions opts
-        opts.lazyZeroSegmentAlloc.enableLazyZero = <bint> py_opts.lazyZeroSegment
-        if py_opts.skipZeroData:
-            opts.lazyZeroSegmentAlloc.skipLazyZeroTypes.insert(capnp.TypeWhichDATA)
-        self.thisptr.setOptions(opts)
+        opts.lazyZeroSegmentAlloc.enableLazyZero = <bint> py_opts.lazyZeroSegmentAlloc.enableLazyZero
+
+        if py_opts.lazyZeroSegmentAlloc is not None:
+            py_set = py_opts.lazyZeroSegmentAlloc.skipLazyZeroTypes
+            if py_set is not None:
+                try:
+                    if types.Data in py_set:
+                        opts.lazyZeroSegmentAlloc.skipLazyZeroTypes.insert(capnp.TypeWhichDATA)
+                except TypeError:
+                    raise TypeError("skipLazyZeroTypes must be an iterable (e.g. set)")
+
+            self.thisptr.setOptions(opts)
 
 
     cpdef get_options(self):
         cdef schema_cpp.BuilderOptions opts = self.thisptr.getOptions()
         cdef BuilderOptions py_opts = BuilderOptions()
-        py_opts.lazyZeroSegment = opts.lazyZeroSegmentAlloc.enableLazyZero
+        py_opts.lazyZeroSegmentAlloc = LazyZeroSegmentAlloc()
+        py_opts.lazyZeroSegmentAlloc.enableLazyZero = opts.lazyZeroSegmentAlloc.enableLazyZero
         if opts.lazyZeroSegmentAlloc.skipLazyZeroTypes.count(capnp.TypeWhichDATA):
-            py_opts.skipZeroData = True
+           py_opts.lazyZeroSegmentAlloc.skipLazyZeroTypes = { types.Data }
         return py_opts
 
-cdef class BuilderOptions:
-    def __init__(self, lazyZeroSegment=False, skipZeroData=False):
-        self.lazyZeroSegment = lazyZeroSegment
-        self.skipZeroData = skipZeroData
+cdef class LazyZeroSegmentAlloc:
+    def __init__(self, enableLazyZero=False, skipLazyZeroTypes=None):
+        self.enableLazyZero = enableLazyZero
+        self.skipLazyZeroTypes = skipLazyZeroTypes
+        if skipLazyZeroTypes == None:
+            self.skipLazyZeroTypes = set()
 
-    def __init__(self, lazyZeroSegment=False, skipZeroData=False):
-        self.lazyZeroSegment = lazyZeroSegment
-        self.skipZeroData = skipZeroData
+cdef class BuilderOptions:
+    def __init__(self, lazyZeroSegmentAlloc=None):
+        self.lazyZeroSegmentAlloc = lazyZeroSegmentAlloc
+        if lazyZeroSegmentAlloc == None:
+            self.lazyZeroSegmentAlloc = LazyZeroSegmentAlloc()
+
 
 cdef class _MallocMessageBuilder(_MessageBuilder):
     """The main class for building Cap'n Proto messages
