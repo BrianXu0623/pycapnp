@@ -26,8 +26,7 @@ person.init("extraData", 100) # random dirty bytes
 print(bytes(person.extraData))
 
 # construction method 2
-allocator = Allocator()
-builder = capnp._PyCustomMessageBuilder(allocate_seg_callable=allocator)
+builder = capnp._PyCustomMessageBuilder(allocate_seg_callable=Allocator())
 builder.set_options(builder_options)
 person = builder.init_root(addressbook_capnp.Person)
 print(person.name) # guaranteed empty string
@@ -35,3 +34,6 @@ person.name = "test name"
 print(person.name)
 person.init("extraData", 100) # random dirty bytes
 print(bytes(person.extraData))
+builder.get_options()
+print(len(builder.get_options().lazyZeroSegmentAlloc.skipLazyZeroTypes))
+print(builder.get_options().lazyZeroSegmentAlloc.skipLazyZeroTypes[0])
