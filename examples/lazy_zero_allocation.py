@@ -26,7 +26,8 @@ person.init("extraData", 100) # random dirty bytes
 print(bytes(person.extraData))
 
 # construction method 2
-builder = capnp._PyCustomMessageBuilder(allocate_seg_callable=Allocator)
+allocator = Allocator()
+builder = capnp._PyCustomMessageBuilder(allocate_seg_callable=allocator)
 builder.set_options(builder_options)
 person = builder.init_root(addressbook_capnp.Person)
 print(person.name) # guaranteed empty string
