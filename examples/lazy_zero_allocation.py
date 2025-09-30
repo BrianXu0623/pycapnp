@@ -15,9 +15,20 @@ class Allocator:
         # dirty the memory on purpose, to simulate reusing shared memory
         return bytearray(random.getrandbits(8) for _ in range(minimum_size * WORD_SIZE))
 
+# construction method 2
 lazy_zero = capnp.LazyZeroSegmentAlloc(enableLazyZero=True, skipLazyZeroTypes={capnp.types.Data})
 builder_options=capnp.BuilderOptions(lazyZeroSegmentAlloc=lazy_zero)
 person = addressbook_capnp.Person.new_message(allocate_seg_callable=Allocator(), builder_options=builder_options)
+print(person.name) # guaranteed empty string
+person.name = "test name"
+print(person.name)
+person.init("extraData", 100) # random dirty bytes
+print(bytes(person.extraData))
+
+# construction method 2
+builder = capnp._PyCustomMessageBuilder(allocate_seg_callable=Allocator)
+builder.set_options(builder_options)
+person = builder.init_root(addressbook_capnp.Person)
 print(person.name) # guaranteed empty string
 person.name = "test name"
 print(person.name)
