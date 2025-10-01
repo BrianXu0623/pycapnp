@@ -2,7 +2,9 @@
 # distutils: language = c++
 
 from libc.stdint cimport *
+from libcpp.set cimport set
 from capnp.helpers.non_circular cimport c_reraise_kj_exception as reraise_kj_exception
+from capnp.includes.capnp_cpp cimport TypeWhich
 
 from capnp.includes.types cimport *
 
@@ -649,6 +651,13 @@ cdef extern from "capnp/message.h" namespace " ::capnp":
         uint64_t traversalLimitInWords
         uint nestingLimit
 
+    cdef cppclass LazyZeroSegmentAlloc "BuilderOptions::LazyZeroSegmentAlloc":
+        bint enableLazyZero
+        set[TypeWhich] skipLazyZeroTypes
+
+    cdef cppclass BuilderOptions:
+        LazyZeroSegmentAlloc lazyZeroSegmentAlloc
+
     cdef cppclass MessageBuilder nogil:
         CodeGeneratorRequest.Builder getRootCodeGeneratorRequest'getRoot< ::capnp::schema::CodeGeneratorRequest>'()
         CodeGeneratorRequest.Builder initRootCodeGeneratorRequest'initRoot< ::capnp::schema::CodeGeneratorRequest>'()
@@ -682,6 +691,9 @@ cdef extern from "capnp/message.h" namespace " ::capnp":
         AnyPointer.Builder getRootAnyPointer'getRoot< ::capnp::AnyPointer>'()
 
         DynamicOrphan newOrphan'getOrphanage().newOrphan'(StructSchema)
+
+        void setOptions'setOptions'(BuilderOptions options)
+        BuilderOptions getOptions'getOptions'() const
 
     cdef cppclass MessageReader nogil:
         CodeGeneratorRequest.Reader getRootCodeGeneratorRequest'getRoot< ::capnp::schema::CodeGeneratorRequest>'()

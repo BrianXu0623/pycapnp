@@ -3196,12 +3196,14 @@ class _StructABCMeta(type):
         return isinstance(obj, cls.__base__) and obj.schema == cls._schema
 
 
-cdef _new_message(self, kwargs, num_first_segment_words, allocate_seg_callable):
+cdef _new_message(self, kwargs, num_first_segment_words, allocate_seg_callable, builder_options):
     cdef _MessageBuilder builder
     if allocate_seg_callable is None:
         builder = _MallocMessageBuilder(num_first_segment_words)
+        builder.set_options(builder_options)
     else:
         builder = _PyCustomMessageBuilder(allocate_seg_callable, num_first_segment_words)
+        builder.set_options(builder_options)
     msg = builder.init_root(self.schema)
     if kwargs is not None:
         msg.from_dict(kwargs)
@@ -3442,7 +3444,7 @@ class _StructModule(object):
     def __call__(self, num_first_segment_words=None, **kwargs):
         return self.new_message(num_first_segment_words=num_first_segment_words, **kwargs)
 
-    def new_message(self, num_first_segment_words=None, allocate_seg_callable=None, **kwargs):
+    def new_message(self, num_first_segment_words=None, allocate_seg_callable=None, builder_options=BuilderOptions(), **kwargs):
         """Returns a newly allocated builder message.
 
         :type num_first_segment_words: int
@@ -3453,6 +3455,9 @@ class _StructModule(object):
         words to allocate (as an `int`) and returns a `bytearray`. This is used to customize the memory
         allocation strategy.
 
+        :type builder_options: BuilderOptions
+        :param builder_options: This is for configuring message builder options, such as lazy zero segment alloc.
+
         :type kwargs: dict
         :param kwargs: A list of fields and their values to initialize in the struct.
 
@@ -3461,7 +3466,7 @@ class _StructModule(object):
 
         :rtype: :class:`_DynamicStructBuilder`
         """
-        return _new_message(self, kwargs, num_first_segment_words, allocate_seg_callable)
+        return _new_message(self, kwargs, num_first_segment_words, allocate_seg_callable, builder_options)
 
 
 class _InterfaceModule(object):
@@ -3794,6 +3799,51 @@ cdef class _MessageBuilder:
             s = schema
         ptr = s._thisptr()
         return _DynamicOrphan()._init(self.thisptr.newOrphan(ptr), self)
+
+    cpdef set_options(self, BuilderOptions py_opts):
+        if py_opts is None:
+            raise ValueError("options must be an BuilderOptions instance, got None")
+
+        cdef schema_cpp.BuilderOptions opts
+        opts.lazyZeroSegmentAlloc.enableLazyZero = <bint> py_opts.lazyZeroSegmentAlloc.enableLazyZero
+
+        if py_opts.lazyZeroSegmentAlloc is not None:
+            py_set = py_opts.lazyZeroSegmentAlloc.skipLazyZeroTypes
+            if py_set is not None:
+                try:
+                    if types.Data in py_set:
+                        opts.lazyZeroSegmentAlloc.skipLazyZeroTypes.insert(capnp.TypeWhichDATA)
+                except TypeError:
+                    raise TypeError("skipLazyZeroTypes must be an iterable (e.g. set)")
+
+            self.thisptr.setOptions(opts)
+
+
+    cpdef get_options(self):
+        cdef schema_cpp.BuilderOptions opts = self.thisptr.getOptions()
+
+        cdef BuilderOptions py_opts = BuilderOptions()
+        py_opts.lazyZeroSegmentAlloc = LazyZeroSegmentAlloc()
+        py_opts.lazyZeroSegmentAlloc.enableLazyZero = opts.lazyZeroSegmentAlloc.enableLazyZero
+        py_opts.lazyZeroSegmentAlloc.skipLazyZeroTypes = set()
+
+        if opts.lazyZeroSegmentAlloc.skipLazyZeroTypes.count(capnp.TypeWhichDATA):
+            py_opts.lazyZeroSegmentAlloc.skipLazyZeroTypes.add(types.Data)
+
+        return py_opts
+
+cdef class LazyZeroSegmentAlloc:
+    def __init__(self, enableLazyZero=False, skipLazyZeroTypes=None):
+        self.enableLazyZero = enableLazyZero
+        self.skipLazyZeroTypes = skipLazyZeroTypes
+        if skipLazyZeroTypes == None:
+            self.skipLazyZeroTypes = set()
+
+cdef class BuilderOptions:
+    def __init__(self, lazyZeroSegmentAlloc=None):
+        self.lazyZeroSegmentAlloc = lazyZeroSegmentAlloc
+        if lazyZeroSegmentAlloc == None:
+            self.lazyZeroSegmentAlloc = LazyZeroSegmentAlloc()
 
 
 cdef class _MallocMessageBuilder(_MessageBuilder):
